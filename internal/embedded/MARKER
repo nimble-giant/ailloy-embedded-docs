@@ -1,0 +1,1 @@
+marker file so go:embed has at least one match even when artifacts haven't been regenerated yet

@@ -1,0 +1,16 @@
+# NOTE: internal/embedded/ is intentionally committed. Generated pre-
+# renders are part of the binary's source via //go:embed. The poller
+# workflow regenerates them via PR whenever docs/ syncs from ailloy.
+
+# Build artifacts
+/bin/
+/dist/
+ailloy-docs
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store

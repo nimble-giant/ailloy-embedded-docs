@@ -1,0 +1,435 @@
+# Blanks
+
+Blanks are the source files of the Ailloy compiler. They are Markdown instruction templates that live in mold directories, define commands and skills for your AI coding tool, and are compiled with flux variables via `ailloy forge` (dry-run) or `ailloy cast` (install).
+
+## Mold Structure
+
+A mold's directory layout is flexible. You can organize your blanks into whatever directories make sense for your team — the `output:` mapping in `flux.yaml` is what determines where each directory's files end up in the target project. There is no required set of directory names.
+
+The only constraints are:
+
+- **Reserved root files** are mold metadata and are never installed: `mold.yaml`, `flux.yaml`, `flux.schema.yaml`, `ingot.yaml`, `README.md`, `PLUGIN_SUMMARY.md`, `LICENSE`, and `.ailloyignore`
+- **`ingots/`** is reserved for reusable template partials (see [Ingots](ingots.md))
+- **Hidden directories** (starting with `.`) are excluded from auto-discovery
+- **Ignored files** specified via `.ailloyignore` or `mold.yaml` `ignore:` are excluded (see [Ignoring Files](#ignoring-files))
+
+Everything else — directory names, nesting, file types — is up to you. A mold with `prompts/` and `guidelines/` directories is just as valid as one with `commands/` and `skills/`:
+
+```
+my-mold/
+├── mold.yaml
+├── flux.yaml
+├── prompts/
+│   ├── deploy-checklist.md
+│   └── incident-response.md
+└── guidelines/
+    └── code-style.md
+```
+
+```yaml
+# flux.yaml
+output:
+  prompts: .ai/prompts
+  guidelines: .ai/guidelines
+```
+
+### Conventions from the Official Mold
+
+The [official mold](https://github.com/nimble-giant/nimble-mold) establishes a set of conventions that many teams follow. These are patterns, not requirements:
+
+#### Commands
+
+Command blanks define commands that users invoke explicitly in their AI coding tool. In the official mold they live in a `commands/` directory and are installed to `.claude/commands/` for Claude Code.
+
+```
+my-mold/
+└── commands/
+    ├── brainstorm.md
+    ├── create-issue.md
+    └── open-pr.md
+```
+
+After `ailloy cast`, each file becomes available as a command in your AI coding tool (e.g., `/brainstorm`, `/create-issue` in Claude Code).
+
+#### Skills
+
+Skill blanks define proactive workflows that your AI coding tool uses automatically based on context, without requiring explicit command invocation. In the official mold they live in a `skills/` directory and are installed to `.claude/skills/`.
+
+```
+my-mold/
+└── skills/
+    └── code-review-style.md
+```
+
+Skills are ideal for instructions that should always be available — coding standards, review guidelines, or domain-specific knowledge.
+
+#### Workflows
+
+Workflow blanks are GitHub Actions YAML files. In the official mold they live in a `workflows/` directory and are installed to `.github/workflows/`. Because workflow files contain raw YAML syntax that conflicts with Go template delimiters, they are typically configured with `process: false` in the output mapping:
+
+```yaml
+output:
+  workflows:
+    dest: .github/workflows
+    process: false
+```
+
+Workflow blanks are only installed when using `ailloy cast --with-workflows`.
+
+### Tool-Agnostic Instructions
+
+Molds can include an `AGENTS.md` file at the root to provide tool-agnostic agent instructions that work with Claude Code, GitHub Copilot, Cursor, and other tools. See [AGENTS.md](agents-md.md) for details.
+
+## Creating Your First Blank
+
+### 1. Set up a mold directory
+
+The quickest way to get started is `ailloy mold new <name>`, which scaffolds a valid mold with sample blanks. Or manually:
+
+```bash
+mkdir my-mold && cd my-mold
+```
+
+### 2. Write `mold.yaml`
+
+```yaml
+apiVersion: v1
+kind: mold
+name: my-team-mold
+version: 1.0.0
+description: "My team's AI workflow blanks"
+author:
+  name: My Team
+  url: https://github.com/my-org
+```
+
+### 3. Write `flux.yaml` with output mapping
+
+The `output:` key maps source directories in your mold to destination paths in the target project:
+
+```yaml
+output:
+  commands: .claude/commands
+  skills: .claude/skills
+
+project:
+  organization: my-org
+
+scm:
+  provider: GitHub
+  cli: gh
+```
+
+### 4. Create a command blank
+
+```bash
+mkdir -p commands
+```
+
+Write `commands/deploy-checklist.md`:
+
+```markdown
+# Deploy Checklist
+
+Generate a deployment checklist for {{ project.organization }}.
+
+## Steps
+
+1. Use `{{ scm.cli }}` to check for open PRs targeting the release branch
+2. Verify all CI checks are passing
+3. List recent commits since last deploy
+4. Generate a summary of changes
+```
+
+### 5. Preview with `forge`
+
+```bash
+ailloy forge ./my-mold
+```
+
+This renders all blanks with your flux values and prints the output — a dry run that lets you verify templates before installing.
+
+### 6. Install with `cast`
+
+```bash
+ailloy cast ./my-mold
+```
+
+This compiles and installs the rendered blanks into the directories defined by your `output:` mapping (e.g., `.claude/commands/` and `.claude/skills/` for Claude Code).
+
+## Template Syntax
+
+Blanks use Go's [text/template](https://pkg.go.dev/text/template) engine with a preprocessing step that simplifies variable references.
+
+### Simple variables
+
+Use `{{ variable }}` to reference top-level flux values. The preprocessor automatically adds the Go template dot prefix, so you don't need to write `{{ .variable }}`:
+
+```markdown
+Organization: {{ project.organization }}
+CLI tool: {{ scm.cli }}
+```
+
+Both `{{ variable }}` and `{{ .variable }}` work — use whichever you prefer.
+
+### Dotted path access
+
+Nested flux values are accessed with dotted paths:
+
+```markdown
+Provider: {{ scm.provider }}
+Board: {{ project.board }}
+Status field: {{ ore.status.field_id }}
+```
+
+### Conditionals
+
+Use Go template conditionals (these require the dot prefix since they use Go template keywords):
+
+```markdown
+{{if .ore.status.enabled}}
+## Status Tracking
+
+Update the status field ({{ .ore.status.field_id }}) after each step.
+{{end}}
+```
+
+### Ranges
+
+Iterate over lists:
+
+```markdown
+{{range $key, $value := .items}}
+- {{ $key }}: {{ $value }}
+{{end}}
+```
+
+### Including ingots
+
+Use the `{{ingot "name"}}` function to include reusable template partials:
+
+```markdown
+# My Command
+
+## Standard Preamble
+{{ingot "team-preamble"}}
+
+## Command-Specific Instructions
+...
+```
+
+The ingot's content is rendered through the same template engine with the same flux context. See the [Ingots guide](ingots.md) for details on creating and managing ingots.
+
+### Preprocessor rules
+
+The preprocessor converts simple `{{variable}}` references to `{{.variable}}` before Go template parsing. It skips Go template keywords (`if`, `else`, `end`, `range`, `with`, `define`, `block`, `template`, `ingot`, `not`, `and`, `or`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `len`, `index`, `print`, `printf`, `println`, `call`, `nil`, `true`, `false`) so they are not dot-prefixed.
+
+### Unresolved variables
+
+Variables that cannot be resolved from the flux context produce a logged warning and resolve to empty strings. The template does not fail — this allows progressive development where not all variables need to be set immediately.
+
+## Flux Variables in Blanks
+
+Blanks reference values defined in `flux.yaml` (or overridden via `-f` files and `--set` flags). See the [Flux guide](flux.md) for full details on defining and layering values.
+
+### Value precedence
+
+When blanks are rendered, flux values are resolved in this order (lowest to highest priority):
+
+1. `mold.yaml` `flux:` schema defaults
+2. `flux.yaml` defaults
+3. `-f, --values` flux overrides (left to right)
+4. `--set` flags
+
+### Multiline values
+
+Use YAML block syntax for multiline flux values:
+
+```yaml
+api:
+  post_review: |-
+    gh api repos/:owner/:repo/pulls/<pr-number>/reviews \
+      --method POST \
+      --field body="<summary>"
+```
+
+Then reference in blanks: `{{ api.post_review }}`
+
+## Blank Discovery
+
+Blanks are automatically discovered from your mold's directory structure. The `output:` mapping in `flux.yaml` determines how directories map to destinations — your directory names are not prescribed:
+
+- **Map output** — each key maps a source directory (whatever you named it) to a destination
+- **String output** — all top-level directories go under the specified parent
+- **No output key** — files are placed at their source paths (identity mapping)
+
+Non-reserved root-level files (e.g., `AGENTS.md`) are auto-discovered and installed to the project root. The `ingots/` directory, reserved root files, and hidden directories (starting with `.`) are always excluded from auto-discovery.
+
+## Ignoring Files
+
+Molds often contain files that are useful within the mold repository — documentation, examples, contributor guides — but should not be cast into the target project. You can exclude files using `.ailloyignore` or the `ignore` field in `mold.yaml`. Both approaches work with `ailloy cast` and `ailloy forge`. Ignored files are still included when packaging with `ailloy smelt`.
+
+### `.ailloyignore` file
+
+Place a `.ailloyignore` file at the mold root with glob patterns for files and directories to exclude:
+
+```
+# Mold documentation - not for target projects
+docs/
+examples/
+
+# Specific files
+CONTRIBUTING.md
+*.example
+```
+
+This follows the familiar `.gitignore` convention. Empty lines and lines starting with `#` are comments.
+
+### `ignore` field in `mold.yaml`
+
+Add an `ignore` key to your mold manifest:
+
+```yaml
+apiVersion: v1
+kind: mold
+name: my-mold
+version: 1.0.0
+ignore:
+  - docs/
+  - examples/
+  - CONTRIBUTING.md
+```
+
+### Pattern syntax
+
+| Pattern | Matches |
+|---------|---------|
+| `docs/` | Everything under the `docs/` directory |
+| `docs/**` | Same as `docs/` |
+| `CONTRIBUTING.md` | A specific file by name |
+| `*.example` | Any file ending in `.example` at any level |
+| `docs/*.md` | Files matching the glob against their full path |
+
+### Combining both sources
+
+When both `.ailloyignore` and `mold.yaml` `ignore:` are present, patterns from both sources are merged. Use `.ailloyignore` for simple, visible exclusions and `mold.yaml` `ignore:` for programmatic or manifest-driven control.
+
+### Effect on operations
+
+| Operation | Ignore applied? |
+|-----------|----------------|
+| `ailloy cast` | Yes — ignored files are not installed |
+| `ailloy forge` | Yes — ignored files are not rendered |
+| `ailloy smelt` | No — all files are included in the package |
+
+## Testing and Previewing
+
+### Dry-run render
+
+Preview what `cast` will produce without writing any files:
+
+```bash
+ailloy forge ./my-mold
+ailloy forge ./my-mold --set project.organization=my-org
+ailloy forge ./my-mold -o /tmp/preview  # write to directory
+```
+
+### Validation
+
+Check your mold's structure, manifests, and template syntax:
+
+```bash
+ailloy temper ./my-mold
+```
+
+This catches template syntax errors, missing manifest fields, and broken file references before you distribute your mold. See the [Validation guide](temper.md) for details.
+
+## Getting Started with Examples
+
+The [official mold](https://github.com/nimble-giant/nimble-mold) provides a reference implementation using the commands/skills/workflows convention. It's a good starting point, but remember that your mold's directory structure is yours to define — the `output:` mapping makes any layout work. For a step-by-step guide to creating a full mold from scratch, see the [Packaging Molds guide](smelt.md).
+
+## Targeting Different AI Tools
+
+The `output:` mapping in `flux.yaml` determines where blanks are installed, making the same mold portable across AI coding tools. Change the output paths to target your tool of choice:
+
+### Claude Code
+
+```yaml
+output:
+  commands: .claude/commands
+  skills: .claude/skills
+```
+
+### Cursor
+
+```yaml
+output:
+  rules: .cursor/rules
+```
+
+### Windsurf
+
+```yaml
+output:
+  rules: .windsurf/rules
+```
+
+### Generic (agents.md compatible)
+
+The [agents.md](https://agents.md) format is supported by many AI coding tools. Place instructions at the project root:
+
+```yaml
+output:
+  agents: .
+```
+
+### Multi-tool
+
+You can target multiple tools from the same mold by mapping source directories to multiple destinations:
+
+```yaml
+output:
+  commands: .claude/commands
+  skills: .claude/skills
+  cursor-rules: .cursor/rules
+```
+
+Since `output:` lives in flux, consumers can override destination paths at install time using `-f` value files or `--set` flags. This means a single mold can serve teams using different AI coding tools.
+
+### Fan-out: one source, many destinations
+
+When the same source directory should render to multiple destinations — for example, an agent definition that needs to land in `.claude/agents/`, `.opencode/agents/`, and `.cursor/rules/` — use a list of destinations:
+
+```yaml
+output:
+  agents:
+    - dest: .claude/agents
+      set:
+        agent.current_target: claude
+    - dest: .opencode/agents
+      set:
+        agent.current_target: opencode
+    - dest: .cursor/rules
+      set:
+        agent.current_target: cursor
+```
+
+Each list entry can be either a string (just a destination path) or a map with `dest`, optional `process`, and optional `set`. The `set` map injects values into the template context for that render pass only — without touching the global flux. Inside the template, switch on the injected value:
+
+```markdown
+{{- if eq .agent.current_target "claude" -}}
+---
+name: coding-agent
+model: opus
+---
+{{- else if eq .agent.current_target "opencode" -}}
+---
+mode: primary
+model: anthropic/claude-opus-4-20250514
+---
+{{- end -}}
+
+{{ingot "coding-agent-body"}}
+```
+
+Keys in `set` may use dotted paths (`agent.current_target`) which expand to nested maps, or be nested maps directly. The fan-out form works for both directory mappings and individual file mappings.

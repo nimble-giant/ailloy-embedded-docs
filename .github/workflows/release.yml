@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build-binaries:
+    name: Build and Upload Binaries
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+    env:
+      RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          check-latest: true
+          cache: true
+
+      - name: Read ailloy docs version
+        id: docs-version
+        run: |
+          DOCS_VER="$(tr -d '\n[:space:]' < ailloy-docs-version.txt)"
+          echo "value=$DOCS_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          DOCS_VER: ${{ steps.docs-version.outputs.value }}
+        run: |
+          BIN=ailloy-docs_${GOOS}_${GOARCH}
+          if [ "${GOOS}" = "windows" ]; then BIN="${BIN}.exe"; fi
+          mkdir -p dist
+          go build \
+            -trimpath \
+            -ldflags "-s -w -X main.version=v${RELEASE_VERSION} -X main.ailloyDocsVersion=${DOCS_VER}" \
+            -o "dist/${BIN}" \
+            ./cmd/ailloy-docs
+
+      - name: Generate per-binary checksum
+        run: |
+          cd dist
+          for f in *; do
+            shasum -a 256 "$f" > "$f.sha256"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+
+  publish:
+    name: Publish Release Assets
+    needs: [release-please, build-binaries]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Build aggregate checksums.txt
+        run: |
+          cd dist
+          rm -f checksums.txt
+          for f in *; do
+            if [ -f "$f" ] && [ "${f##*.}" != "sha256" ]; then
+              shasum -a 256 "$f" >> checksums.txt
+            fi
+          done
+          cat checksums.txt
+      - name: Append docs source pin to release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DOCS_VER="$(tr -d '\n[:space:]' < ailloy-docs-version.txt)"
+          NOTE="$(printf '\n\n_Built from ailloy docs %s_\n' "${DOCS_VER}")"
+          gh release view "${RELEASE_TAG}" --json body --jq '.body' > current_body.md
+          printf '%s%s' "$(cat current_body.md)" "${NOTE}" > new_body.md
+          gh release edit "${RELEASE_TAG}" --notes-file new_body.md
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          gh release upload "${RELEASE_TAG}" * --clobber
