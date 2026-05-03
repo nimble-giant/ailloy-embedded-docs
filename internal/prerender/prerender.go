@@ -107,7 +107,7 @@ func Run(opts Options) error {
 					return err
 				}
 				if opts.Verbose {
-					fmt.Fprintf(opts.Out, "  %s/%d  %s\n", style, width, t.Slug)
+					_, _ = fmt.Fprintf(opts.Out, "  %s/%d  %s\n", style, width, t.Slug)
 				}
 			}
 			_ = renderer.Close()

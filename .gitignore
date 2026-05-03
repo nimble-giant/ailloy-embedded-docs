@@ -5,7 +5,9 @@
 # Build artifacts
 /bin/
 /dist/
-ailloy-docs
+# Anchored so it only matches a top-level built binary, not the
+# cmd/ailloy-docs/ source directory.
+/ailloy-docs
 
 # Editor
 .vscode/
