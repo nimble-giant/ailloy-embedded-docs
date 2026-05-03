@@ -57,7 +57,7 @@ func main() {
 	// Topic argument → render to stdout.
 	if len(args) >= 1 && args[0] != "" && args[0][0] != '-' {
 		if err := renderTopic(os.Stdout, args[0]); err != nil {
-			fmt.Fprintln(os.Stderr, "ailloy-docs:", err)
+			_, _ = fmt.Fprintln(os.Stderr, "ailloy-docs:", err)
 			os.Exit(1)
 		}
 		return
@@ -66,7 +66,7 @@ func main() {
 	// No args: launch the TUI when interactive, otherwise list topics.
 	if isInteractive() {
 		if err := tui.Run(); err != nil {
-			fmt.Fprintln(os.Stderr, "ailloy-docs:", err)
+			_, _ = fmt.Fprintln(os.Stderr, "ailloy-docs:", err)
 			os.Exit(1)
 		}
 		return
@@ -79,13 +79,13 @@ func isInteractive() bool {
 }
 
 func printTopicList(w io.Writer) {
-	fmt.Fprintln(w, "Available documentation topics:")
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "Available documentation topics:")
+	_, _ = fmt.Fprintln(w)
 	for _, t := range clidocs.List() {
-		fmt.Fprintf(w, "  %-32s %s\n", t.Slug, t.Summary)
+		_, _ = fmt.Fprintf(w, "  %-32s %s\n", t.Slug, t.Summary)
 	}
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Render a topic with: ailloy docs <topic>")
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "Render a topic with: ailloy docs <topic>")
 }
 
 func renderTopic(w io.Writer, slug string) error {

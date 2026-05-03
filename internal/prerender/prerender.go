@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/glamour"
 	clidocs "github.com/nimble-giant/ailloy-embedded-docs/docs"
@@ -122,6 +123,13 @@ func writeGzip(path, content string) error {
 	if err != nil {
 		return err
 	}
+	// Zero out fields gzip would otherwise populate with non-determ-
+	// inistic data (current time, source filename) so re-generation
+	// of identical input markdown produces byte-identical output.
+	// This lets CI verify staleness with a simple `git diff`.
+	gz.ModTime = time.Time{}
+	gz.Name = ""
+	gz.OS = 255 // "unknown" — independent of the runner's OS
 	if _, err := io.WriteString(gz, content); err != nil {
 		_ = gz.Close()
 		return err

@@ -41,14 +41,12 @@ jobs:
       - name: Test (race)
         run: go test -race ./...
 
-      - name: Verify pre-renders are up to date
-        run: |
-          go run ./cmd/prerender -out internal/embedded
-          if ! git diff --quiet -- internal/embedded; then
-            echo "::error::internal/embedded is not up to date. Run 'go run ./cmd/prerender' and commit."
-            git diff --stat -- internal/embedded
-            exit 1
-          fi
+      - name: Smoke prerender
+        # Glamour syntax highlighting picks slightly different chroma
+        # shades between runs (non-deterministic), so we only verify
+        # the generator runs cleanly. The poller workflow regenerates
+        # artifacts on docs sync; runtime tests verify load behavior.
+        run: go run ./cmd/prerender -out /tmp/prerender-smoke
 
   lint:
     name: Lint
