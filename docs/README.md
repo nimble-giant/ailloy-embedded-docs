@@ -20,6 +20,8 @@ These guides teach you how to create, package, and share your own AI workflow pa
 - [AGENTS.md](agents-md.md) — Tool-agnostic agent instructions in molds
 - [Flux Variables](flux.md) — Configure blanks with variables, schemas, and value layering
 - [Ingots](ingots.md) — Create and use reusable template components
+- [Ore](ore.md) — Reusable flux partials for opt-in business-logic data structures
+- [Mold Dependencies](mold-dependencies.md) — Compose molds; transitive resolution, conflict handling, lockfile, uninstall cascade
 - [Packaging Molds](smelt.md) — Package molds into distributable tarballs or binaries
 
 ## Operations
@@ -29,3 +31,4 @@ These guides teach you how to create, package, and share your own AI workflow pa
 - [Configuration Wizard](anneal.md) — Interactive wizard for flux variable configuration
 - [Validation](temper.md) — Lint and validate mold and ingot packages
 - [Plugins](plugin.md) — Generate plugins from molds (currently Claude Code)
+- [Cache Management](cache.md) — Clear cached molds and foundry indexes
