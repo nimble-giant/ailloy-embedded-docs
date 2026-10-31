@@ -25,7 +25,8 @@ ailloy lint
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| `line-count` | Warning | File exceeds 150 lines (configurable); suggest splitting |
+| `line-count` | Warning | File exceeds 150 lines (configurable); suggest splitting. SKILL.md is excluded — it has its own 500-line cap via `skill-body-length` |
+| `windows-paths` | Warning | Markdown content references Windows-style backslash paths (e.g., `scripts\helper.py`); use forward slashes for cross-platform compatibility |
 | `structure` | Warning | Markdown file lacks headings — unstructured instructions reduce adherence |
 | `agents-md-presence` | Suggestion | Project has platform-specific files but no `AGENTS.md`; when `CLAUDE.md` is detected the tip gives a concrete migration path using `@AGENTS.md` |
 | `cross-reference` | Warning | `CLAUDE.md` exists alongside `AGENTS.md` but doesn't import it via `@AGENTS.md` |
@@ -56,6 +57,18 @@ ailloy lint
 | `compatibility-length` | Error | `compatibility` field exceeds the [platform maximum of 500 characters](https://agentskills.io/specification#compatibility-field) |
 | `skill-token-budget` | Warning | Skill body exceeds [~5000 tokens](https://agentskills.io/specification#progressive-disclosure) (configurable); move reference material to separate files |
 | `description-imperative` | Suggestion | Description uses [declarative phrasing](https://agentskills.io/skill-creation/optimizing-descriptions#writing-effective-descriptions) ("This skill does...") instead of imperative ("Analyzes...") |
+| `reference-file-toc` | Warning | A skill reference file (`skills/<name>/*.md` ≠ `SKILL.md`) exceeds 100 lines (configurable) without a `## Contents` / `## Table of contents` heading; without a TOC, Claude may partial-read and miss sections — see [Anthropic guidance](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents) |
+| `reference-depth` | Warning | `SKILL.md` references a file that itself references another markdown file; keep [references one level deep](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references) so Claude reads the full file |
+| `name-gerund-form` | Suggestion | Skill/agent name is not in gerund form (no `-ing` segment) and does not begin with a recognized action verb; gerund form (e.g., `processing-pdfs`) triggers [more reliably](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#naming-conventions) |
+
+### Mold-tree rules
+
+These rules lint a mold's source tree (rather than rendered AI instruction files) and are invoked automatically by [`ailloy temper`](temper.md):
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `ore-shadowing` | Warning | A mold has both a packaged ore at `./ores/<n>/` and hand-rolled `ore.<n>.*` entries in `flux.schema.yaml`; the hand-rolled entries silently shadow the package and almost always indicate a missed cleanup after migrating from the in-tree convention |
+| `license-missing` | Suggestion | The package manifest (`mold.yaml`, `ingot.yaml`, or `ore.yaml`) has no `license` field; consumers can't tell how the package may be used. Declare an [SPDX identifier](https://spdx.org/licenses/) such as `Apache-2.0`, `MIT`, or `BSD-3-Clause`, or `LicenseRef-<id>` for custom licenses |
 
 ## Claude Plugin Directory Support
 
@@ -67,7 +80,7 @@ For each plugin found, assay scans and applies rules to:
 |---|---|---|
 | `.claude-plugin/plugin.json` | JSON | `plugin-manifest` |
 | `commands/**` | `.md` | `command-frontmatter`, `commands-deprecated`, `description-length`, `description-max-length`, `description-point-of-view`, `description-missing-trigger`, `description-imperative`, `name-format`, `name-reserved-words`, `vague-name`, `compatibility-length`, content rules |
-| `skills/**` | `.md` | `command-frontmatter`, `description-length`, `description-max-length`, `description-point-of-view`, `description-missing-trigger`, `description-imperative`, `name-format`, `name-reserved-words`, `name-directory-mismatch`, `vague-name`, `skill-body-length`, `skill-token-budget`, `compatibility-length`, content rules |
+| `skills/**` | `.md` | `command-frontmatter`, `description-length`, `description-max-length`, `description-point-of-view`, `description-missing-trigger`, `description-imperative`, `name-format`, `name-reserved-words`, `name-directory-mismatch`, `vague-name`, `name-gerund-form`, `skill-body-length`, `skill-token-budget`, `compatibility-length`, `reference-file-toc`, `reference-depth`, content rules |
 | `rules/**` | `.md` | content rules (`structure`, `line-count`, `empty-file`, …) |
 | `agents/**` | `.yml` / `.yaml` | `agent-frontmatter`, `description-length`, `description-max-length`, `description-point-of-view`, `description-missing-trigger`, `description-imperative`, `name-format`, `name-reserved-words`, `vague-name` |
 | `hooks/**` | `.json` | `plugin-hooks` |
