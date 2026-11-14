@@ -41,12 +41,20 @@ kind: mold
 name: my-team-mold
 version: 1.0.0
 description: "Our team's AI workflow blanks"
+license: Apache-2.0       # optional; SPDX identifier (see https://spdx.org/licenses/)
 author:
   name: My Team
   url: https://github.com/my-org
 requires:
   ailloy: ">=0.2.0"
 ```
+
+The `license` field is optional. When set, [`ailloy temper`](temper.md) will:
+
+- Warn if the value isn't a recognized SPDX identifier (use `LicenseRef-<id>` for custom or proprietary licenses).
+- Warn if no `LICENSE` file is present at the package root.
+
+Authors who omit the field get a low-severity suggestion to add one — it's never blocking.
 
 ## Step 2: Write `flux.yaml` (optional)
 
@@ -313,7 +321,15 @@ You can still pass an explicit mold-dir to override the embedded mold:
 
 ### What goes in the binary
 
-The binary includes the same files as the tarball (see above). The output is named `{name}-{version}` (no extension) and is made executable.
+The binary includes everything from the tarball (see above), **plus the full transitive dependency tree** so the binary can cast entirely offline:
+
+- All mold-kind transitive dependencies (resolved at smelt time) under `deps/molds/`
+- All ore and ingot dependencies declared by the root mold and its transitives under `deps/ores/` and `deps/ingots/`
+- `deps/manifest.json` — a pinned inventory of every bundled dep (source, version, commit)
+
+The output is named `{name}-{version}` (no extension) and is made executable.
+
+> **Air-gap delivery.** A smelted binary carries everything needed to `cast` without any network access. No `--offline` flag is required — the binary detects its embedded dep tree automatically and serves deps from it. The cache does not need to be pre-warmed.
 
 ## CLI Reference
 
